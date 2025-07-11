@@ -10,7 +10,7 @@ This is a relatively simple Terraform script that can be used to quickly spin up
 
 ## How to use
 
-After running the proverbial `terraform init` and 'terraform plan` simply run the below in your working directory:
+After running the proverbial `terraform init` and `terraform plan` simply run the below in your working directory:
 
 `terraform apply -var="aws_region=<your-region-of-choice>"`
 
