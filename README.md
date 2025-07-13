@@ -17,4 +17,4 @@ After running the proverbial `terraform init` and `terraform plan` simply run th
 The script will then create all the necessary infrastructure from the VPC onward.
 
 Once the environment has been created you will need to configure the VM-Series firewall's interfaces, NAT policies, and security policies.
-[Here] (https://docs.paloaltonetworks.com/vm-series/10-2/vm-series-deployment/set-up-the-vm-series-firewall-on-aws/use-case-secure-the-ec2-instances-in-the-aws-cloud) is a helpful resource to do so.
+[Here](https://docs.paloaltonetworks.com/vm-series/10-2/vm-series-deployment/set-up-the-vm-series-firewall-on-aws/use-case-secure-the-ec2-instances-in-the-aws-cloud) is a helpful resource to do so.
