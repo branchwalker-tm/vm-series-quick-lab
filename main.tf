@@ -10,6 +10,12 @@ variable "aws_region" {
   }
 }
 
+variable "my_ip_address" {
+  description = "Your public IP address for SSH access to the bastion host (e.g., 'X.X.X.X/32')."
+  type        = string
+  default     = "0.0.0.0/0" # WARNING: Change this to your public IP for production
+}
+
 ###### Configure the AWS provider ######
 
 provider "aws" {
@@ -201,7 +207,7 @@ resource "aws_security_group" "paloalto_trust_sg" {
 
 resource "aws_security_group" "ubuntu_private_sg" {
   name        = "ubuntu-private-sg-${random_id.suffix.hex}"
-  description = "Allow traffic only from Palo Alto trust interface"
+  description = "Allow traffic only from Palo Alto trust interface and bastion host"
   vpc_id      = aws_vpc.lab_vpc.id
 
   ingress {
@@ -210,6 +216,14 @@ resource "aws_security_group" "ubuntu_private_sg" {
     protocol        = "-1"
     security_groups = [aws_security_group.paloalto_trust_sg.id]
     description     = "Allow all from Palo Alto Trust Interface"
+  }
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion_sg.id]
+    description     = "Allow SSH from Bastion Host"
   }
 
   egress {
@@ -236,7 +250,7 @@ resource "aws_network_interface" "palo_alto_mgmt_eni" {
   subnet_id         = aws_subnet.public_subnet.id
   security_groups   = [aws_security_group.paloalto_mgmt_sg.id]
   private_ips       = ["10.0.1.5"] ###### Assign a specific private IP for management
-  source_dest_check = true         ###### Management interface typically has source/dest check enabled
+  source_dest_check = true       ###### Management interface typically has source/dest check enabled
 
   tags = {
     Name = "PaloAlto-Mgmt-ENI"
@@ -268,10 +282,10 @@ resource "aws_network_interface" "palo_alto_trust_eni" {
 ######  Palo Alto Networks VM-Series Firewall EC2 Instance ###### 
 
 resource "aws_instance" "palo_alto_vm_series" {
-  ami                         = "ami-01e981c186be7d73b" ###### Palo Alto AMI ID for us-east-2
-  instance_type               = "m5.xlarge"
-  key_name                    = "<YOUR_SSH_KEYPAIR_NAME>"
-  disable_api_termination     = false
+  ami                   = "ami-01e981c186be7d73b" ###### Palo Alto AMI ID for us-east-2
+  instance_type         = "m5.xlarge"
+  key_name              = "<YOUR_SSH_KEYPAIR_NAME>"
+  disable_api_termination = false
 
   ###### All network interfaces are attached as explicit blocks ######
   network_interface {
@@ -318,6 +332,48 @@ resource "aws_eip" "palo_alto_mgmt_eip" {
     Name = "PaloAlto-VM-Series-Mgmt-EIP"
   }
 }
+
+######  Bastion Host ######
+
+resource "aws_security_group" "bastion_sg" {
+  name        = "bastion-sg-${random_id.suffix.hex}"
+  description = "Allow SSH access to the bastion host"
+  vpc_id      = aws_vpc.lab_vpc.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.my_ip_address]
+    description = "Allow SSH from my IP"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
+  }
+
+  tags = {
+    Name = "Bastion-SG"
+  }
+}
+
+resource "aws_instance" "bastion_host" {
+  ami                    = data.aws_ami.ubuntu_latest.id
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.public_subnet.id
+  security_groups        = [aws_security_group.bastion_sg.id]
+  key_name               = "<YOUR_SSH_KEYPAIR_NAME>"
+  associate_public_ip_address = true # Bastion needs a public IP
+
+  tags = {
+    Name = "Bastion-Host"
+  }
+}
+
 
 ######  Ubuntu VM ######
 
@@ -397,4 +453,9 @@ output "palo_alto_mgmt_private_ip" {
 output "palo_alto_untrust_private_ip" {
   description = "Private IP address of the Palo Alto Networks VM-Series Untrust Interface"
   value       = aws_network_interface.palo_alto_untrust_eni.private_ip
+}
+
+output "bastion_public_ip" {
+  description = "Public IP address of the Bastion Host"
+  value       = aws_instance.bastion_host.public_ip
 }
